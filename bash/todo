@@ -1,0 +1,38 @@
+#!/bin/bash
+cd ~/Documents/scripting/school_scripts/todo.d
+if [[ -z $1 ]]; then
+	cat todo.txt
+	exit
+elif [[ $1 == "-c" ]]; then
+	echo "Clearing todo"
+	echo "$(cat todo.txt)" > todoBackup.txt
+	rm todo.txt
+	touch todo.txt
+elif [[ $1 == "-r" ]]; then
+	echo "Restoring todo"
+	echo "$(cat todoBackup.txt)" > todo.txt
+elif [[ $1 == "-p" ]]; then
+	if [[ -z $2 ]]; then
+		echo -n "Line: "
+		read -r num
+	else
+		num=$2
+	fi
+	echo "Removing line #$num"
+	cp todo.txt todoBackup.txt
+	rm todo.txt
+	touch todo.txt
+	count=1
+	while read i; do
+		if [[ "$count" != "$num" ]]; then
+			echo $i >> todo.txt
+		fi
+	(( count++ ))
+	done < todoBackup.txt
+	exit
+else
+	echo "Adding $1"
+	echo "$1" >> todo.txt
+	exit
+fi
+
