@@ -1,7 +1,7 @@
 section .data
 	ARGERR		db 'Invalid Argument(s)',10
 	ARGERRL		equ $ - ARGERR
-	RERRMSG		db 'File fucked up', 10
+	RERRMSG		db 'File messed up', 10
 	RERRMSGL	equ $ - RERRMSG
 	ARGC:		db 1			; Number of args
 	POPI:		db 1			; Index to remove
