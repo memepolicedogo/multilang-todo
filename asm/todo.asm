@@ -11,12 +11,15 @@ section .data
 	FBUFF_LEN:	equ 1024			; Bytes in file buffer
 	READ_LEN	db 0			; How much of the file is read
 
+
+
 section .bss
 	FDESC 		resq 1			; File discriptor
 	FBUFF		resb 1024		; File buffer
 	WBUFF		resb 1			; Write buffer
 	ADESC		resb 1			; Argument discriptor
 	ABUFF		resb 1			; Argument buffer
+
 section .text
 
 global _start
@@ -214,6 +217,38 @@ ReadErr:
 	call	EXIT		; then it exits
 
 global PUT
-PUT:				; TODO
-	call	EXIT
+PUT:
+	; Open the file
+	mov	rax, 2
+	mov	rdi, FILENAME
+	mov	rsi, 2
+	mov	rdx, 2000
+	syscall
+
+	cmp	rax, 0		; If it failed to open
+	jle	ReadErr		; Print error message
+
+	mov	[FDESC], rax 	; Otherwise store the file discriptor 
+
+PIter:
+	mov	r9b, [r8]	; Get the next char
+	mov	[WBUFF], r9b 	; Store it in the write buffer
+	inc	r8 		; Increment the pointer
+	cmp	r9b, byte NULL	; If it is the null end char
+	je	PEnd		; End the loop
+	; Otherwise write char to the file
+	mov	rax, 1
+	mov	rdi, [FDESC]
+	mov	rsi, WBUFF
+	mov	rdx, 1
+	syscall
+	jmp	PIter		; Restart the loop
+PEnd:
+	; Write a newline to the end of the file
+	mov	rax, 1
+	mov	rdi, [FDESC]
+	mov	rsi, 10
+	mov	rdx, 1
+	syscall
+	call	EXIT		; Exit the jawn
 
