@@ -73,7 +73,6 @@ del:
 add:
 	call PUT		; Call the put function
 
-
 global EXIT
 EXIT:
 	mov	rax, 60		; Exit syscode
@@ -107,17 +106,15 @@ POUT:
 	mov	rax, 0
 	mov	rdi, [FDESC]
 	mov	rsi, FBUFF
-	mov	rdx, [FBUFF_LEN]
+	mov	rdx, FBUFF_LEN
 	syscall
 
-	mov	[FBUFF_LEN], rax 
+	mov	rdx, rax 
 	; Print file
 	mov	rax, 1		; sys write
 	mov	rdi, 1		; stdout
 	mov	rsi, FBUFF	; string source
-	mov	rdx, [FBUFF_LEN]; string len
 	syscall
-	call	newline
 	call	EXIT
 
 global POP
@@ -206,8 +203,8 @@ ItrEnd:
 	call	EXIT		; Just leave
 
 ReadErr:
-	; If the file isn't read right it prints
-	; to std out
+	; If the file isn't read right it prints an error
+	; message to std out
 	mov	rax, 1
 	mov	rdi, 1
 	mov	rsi, RERRMSG
