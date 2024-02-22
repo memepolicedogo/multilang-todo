@@ -3,17 +3,14 @@ section .data
 	ARGERRL		equ $ - ARGERR
 	RERRMSG		db 'File messed up', 10
 	RERRMSGL	equ $ - RERRMSG
-	ARGC:		db 1			; Number of args
-	POPI:		db 1			; Index to remove
+	ARGC:		dq 1			; Number of args
 	NL:		db 10			; Newline char
 	FILENAME:	db 'todo.txt',0		; Name of todo file
 	NULL:		equ 0			; Null char
 	FBUFF_LEN:	equ 1024			; Bytes in file buffer
-	READ_LEN	db 0			; How much of the file is read
-
-
-
+	READ_LEN	dq 0			; How much of the file is read
 section .bss
+	POPI		resq 1
 	FDESC 		resq 1			; File discriptor
 	FBUFF		resb 1024		; File buffer
 	WBUFF		resb 1			; Write buffer
@@ -66,10 +63,12 @@ print:
 	call POUT		; Call the print function
 del:
 	inc	r8 		; Increment the pointer
+	cmp	[r8], byte 0
+	je	del
 	mov	r9b, [r8]	; Store the next char
 	sub	r9b, 48		; Subtract 48 from the ascii value to get the decimal value
-	mov	[POPI], r9b 	; Store it in the pop index variable
-	call POP		; Call the pop function
+	mov	[POPI], r9 	; Store it in the pop index variable
+	call	POP		; Call the pop function
 add:
 	call PUT		; Call the put function
 
@@ -141,7 +140,6 @@ POP:
 	syscall
 
 	mov	[READ_LEN], rax	; Store how many bytes were read
-
 	; Close file
 	mov	rax, 3
 	mov	rdi, [FDESC]
@@ -157,6 +155,12 @@ POP:
 	mov	rdi, FILENAME
 	mov	rsi, 101	; Create if not exist and open to read
 	mov	rdx, 666q	; read/write perms for all users
+	syscall
+
+	mov	rax, 2
+	mov	rdi, FILENAME
+	mov	rsi, 2
+	xor	rdx, rdx 
 	syscall
 
 	mov	[FDESC], rax	;
@@ -178,8 +182,8 @@ Itr:
 	; I have to use rsi as an inbetween.
 	; For writing rsi must be a pointer to the string
 	; to be written so the actual char cannot be stored therein
-	cmp	r8, [READ_LEN]	; If we've reached the last char
-	je	ItrEnd		; End the loop
+	cmp	r8b, byte [READ_LEN]	; If we've reached the last char
+	jge	ItrEnd		; End the loop
 	inc	r8 		; Otherwise go to the next
 	cmp	rsi, 10		; If this char is a newline
 	je	IncNL
@@ -188,6 +192,7 @@ Itr:
 	je	Skip		; If it is, skip it
 IncNL:
 	inc	r10 		; Increment the line counter
+	mov	r14, [POPI]
 	cmp	r10, [POPI]	; If the line is to be removed
 	je	Itr		; Restart the loop
 Write:				; Otherwise it continues to this code
@@ -219,14 +224,17 @@ PUT:
 	mov	rax, 2
 	mov	rdi, FILENAME
 	mov	rsi, 2
-	mov	rdx, 2000
 	syscall
 
 	cmp	rax, 0		; If it failed to open
 	jle	ReadErr		; Print error message
-
 	mov	[FDESC], rax 	; Otherwise store the file discriptor 
 
+	mov	rax, 8
+	mov	rdi, [FDESC]
+	mov	rsi, 0
+	xor	rdx, 2
+	syscall
 PIter:
 	mov	r9b, [r8]	; Get the next char
 	mov	[WBUFF], r9b 	; Store it in the write buffer
@@ -242,9 +250,10 @@ PIter:
 	jmp	PIter		; Restart the loop
 PEnd:
 	; Write a newline to the end of the file
+	mov	[WBUFF], byte 10
 	mov	rax, 1
 	mov	rdi, [FDESC]
-	mov	rsi, 10
+	mov	rsi, WBUFF
 	mov	rdx, 1
 	syscall
 	call	EXIT		; Exit the jawn
