@@ -1,4 +1,5 @@
 section .data
+	LINESEP		db ': '
 	ARGERR		db 'Invalid Argument(s)',10
 	ARGERRL		equ $ - ARGERR
 	RERRMSG		db 'File messed up', 10
@@ -14,6 +15,7 @@ section .bss
 	FDESC 		resq 1			; File discriptor
 	FBUFF		resb 1024		; File buffer
 	WBUFF		resb 1			; Write buffer
+	LWBUFF		resq 1
 	ADESC		resb 1			; Argument discriptor
 	ABUFF		resb 1			; Argument buffer
 
@@ -88,6 +90,16 @@ newline:
 	syscall
 	ret
 
+global lnspace
+lnspace:
+	mov	rax, 1
+	mov	rsi, 1
+	mov	rsi, LINESEP
+	mov	rdx, 2
+	syscall
+	ret
+
+
 global POUT
 POUT:
 	; Open the file
@@ -108,12 +120,76 @@ POUT:
 	mov	rdx, FBUFF_LEN
 	syscall
 
-	mov	rdx, rax 
-	; Print file
-	mov	rax, 1		; sys write
-	mov	rdi, 1		; stdout
-	mov	rsi, FBUFF	; string source
+	cmp	rax, 0
+	jle	ReadErr
+
+	mov	[READ_LEN], rax 
+	; Print "0: "
+	mov	[LWBUFF], byte 48
+	mov	rax, 1
+	mov	rdi, 1
+	mov	rsi, LWBUFF
+	mov	rdx, 8
 	syscall
+	call lnspace
+
+	xor	r10, r10 
+	xor	r8, r8 
+PrintItr:
+	cmp	r8, [READ_LEN]
+	jz	PrintEnd
+
+	cmp	[FBUFF+r8], byte 10
+	je	PrintNewline
+	jmp	PrintFChar
+
+PrintNewline:
+	inc	r8 
+	cmp	r8, [READ_LEN]
+	jz	PrintEnd
+	call	newline
+	mov	r10, 0
+	mov	al, byte [LWBUFF]
+	cmp	al, 57
+	je	ShiftDigit
+	inc	byte [LWBUFF]
+PrintLineCounter:
+	mov	rax, 1
+	mov	rdi, 1
+	mov	rsi, LWBUFF
+	add	rsi, 7
+	sub	rsi, r10 
+	mov	rdx, 1
+	syscall
+	inc	r10 
+	cmp	r10, 8
+	jge	EndLineCounter
+	jl	PrintLineCounter
+ShiftDigit:
+	mov	rax, [LWBUFF]
+	sub	rax, 8
+	shl	rax, 8
+	add	rax, 48
+	mov	[LWBUFF], rax 
+	jmp PrintLineCounter
+
+EndLineCounter:
+	call	lnspace
+	jmp 	PrintItr
+
+PrintFChar:
+	mov	rax, 1
+	mov	rdi, 1
+	mov	rsi, FBUFF
+	add	rsi, r8 
+	mov	rdx, 1
+	syscall
+	inc	r8 
+	jmp	PrintItr
+
+
+PrintEnd:
+	call	newline
 	call	EXIT
 
 global POP
@@ -257,4 +333,3 @@ PEnd:
 	mov	rdx, 1
 	syscall
 	call	EXIT		; Exit the jawn
-
