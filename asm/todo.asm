@@ -47,8 +47,7 @@ NextArg:
 	; Otherwise it must be an item to add, so we jump to that part
 
 	inc	r8 		; Increment the arg pointer
-	mov	r9b, [r8]	; Gets the next char of the arg, should be all we need to know what to do
-
+	mov	r9b, [r8]	; Gets the next char of the arg, should be all we need to know what to do 
 	cmp	r9b, byte 100	; If it is d, the delete flag
 	je	del		; Jump to the delete function
 				; Otherwise it is invalid
@@ -64,12 +63,20 @@ NextArg:
 print:
 	call POUT		; Call the print function
 del:
-	inc	r8 		; Increment the pointer
-	cmp	[r8], byte 0
-	je	del
+	inc	r8		; move past the null seperator
+CalcPopIndex:
+	inc	r8		; Get the next char
 	mov	r9b, [r8]	; Store the next char
+	cmp	r9b, 0		; Check if it is null terminator
+	je	POPcall
 	sub	r9b, 48		; Subtract 48 from the ascii value to get the decimal value
-	mov	[POPI], r9 	; Store it in the pop index variable
+	mov	rax, [POPI]
+	mov	r14, 10
+	mul	r14 
+	mov	[POPI], rax 
+	add	[POPI], r9 	; Store it in the pop index variable
+	jmp	CalcPopIndex
+POPcall:
 	call	POP		; Call the pop function
 add:
 	call PUT		; Call the put function
