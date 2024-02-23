@@ -115,7 +115,7 @@ POUT:
 	mov	rsi, 0		;
 	syscall
 
-	cmp	rax, 0
+	cmp	rax, 0		; Checks for error
 	jle	ReadErr
 
 	mov	[FDESC], rax	; store file pointer
@@ -127,10 +127,10 @@ POUT:
 	mov	rdx, FBUFF_LEN
 	syscall
 
-	cmp	rax, 0
+	cmp	rax, 0		; Checks for error
 	jle	ReadErr
 
-	mov	[READ_LEN], rax 
+	mov	[READ_LEN], rax ; Store the number of pingus read
 	; Print "0: "
 	mov	[LWBUFF], byte 48
 	mov	rax, 1
@@ -140,64 +140,75 @@ POUT:
 	syscall
 	call lnspace
 
-	xor	r10, r10 
-	xor	r8, r8 
+	xor	r10, r10 	; Dont worry about this one
+	xor	r8, r8 		; How many chars from the file have been printed
 PrintItr:
-	cmp	r8, [READ_LEN]
-	jz	PrintEnd
+; Iterates through each byte of the file and prints it out
+; along with a line number at each newline
+	cmp	r8, [READ_LEN]	; If we've printed all we read
+	jz	PrintEnd	; End the jawn
 
-	cmp	[FBUFF+r8], byte 10
-	je	PrintNewline
-	jmp	PrintFChar
+	cmp	[FBUFF+r8], byte 10; If the next char is a newline
+	je	PrintNewline	; Handle line numbers
+	jmp	PrintFChar	; Otherwise print it normally
 
 PrintNewline:
-	inc	r8 
-	cmp	r8, [READ_LEN]
-	jz	PrintEnd
-	call	newline
-	mov	r10, 0
-	mov	al, byte [LWBUFF]
-	cmp	al, 57
-	je	ShiftDigit
-	inc	byte [LWBUFF]
+; Prints a newline charachter and increments the line number
+; counter and then prints it out
+	inc	r8 		; Increments the char printed counter
+	cmp	r8, [READ_LEN]	; If this is the final byte of the file
+	jz	PrintEnd	; End the loop
+	call	newline		; Otherwise print a newline
+	mov	r10, 0		; Zero the counter for printing the chars of the counter
+	mov	al, byte [LWBUFF]; Store the lowest byte in the line number counter
+	cmp	al, 57		; If it is the ascii for 9
+	je	ShiftDigit	; We need to shift the digits 
+	inc	byte [LWBUFF]	; Otherwise we can just add 1
 PrintLineCounter:
-	mov	rax, 1
-	mov	rdi, 1
-	mov	rsi, LWBUFF
-	add	rsi, 7
-	sub	rsi, r10 
-	mov	rdx, 1
-	syscall
-	inc	r10 
-	cmp	r10, 8
-	jge	EndLineCounter
-	jl	PrintLineCounter
+; This prints the counter that stores the ascii value of 
+; each digit in reverse order. Normally sys_write prints 
+; each byte from left to right, but we need to store
+; the bytes from right to left in order to easily be 
+; able to shift them every 10 lines
+	mov	rax, 1		; System write #
+	mov	rdi, 1		; Stdout
+	mov	rsi, LWBUFF	; Load counter pointer
+	add	rsi, 7		; Go to the highest byte in the counter
+	sub	rsi, r10 	; Go down by the number of bytes of the counter that have been printed
+	mov	rdx, 1		; The number of bytes to print
+	syscall			; Prints
+	inc	r10 		; Increments the counter
+	cmp	r10, 8		; If there are no more bytes to print
+	jge	EndLineCounter	; Go to print ': ' and the next line of chars
+	jl	PrintLineCounter; Otherwise print the next byte
 ShiftDigit:
-	mov	rax, [LWBUFF]
-	sub	rax, 8
-	shl	rax, 8
-	add	rax, 48
-	mov	[LWBUFF], rax 
-	jmp PrintLineCounter
+	mov	rax, [LWBUFF]	; Store our counter in rax so we can do more to it
+	sub	rax, 8		; Subtract 8, turns out '9' to a '1'
+	shl	rax, 8		; Move everything over to the left 1 byte
+	; i.e. if we have '','','1','1' this gives us '','1','1',''
+	add	rax, 48		; Adds the ascii for '0', effectivly puts it in the lowest bit
+	mov	[LWBUFF], rax 	; Put our updated value into our buffer
+	jmp PrintLineCounter	; Print our updated value
 
 EndLineCounter:
-	call	lnspace
-	jmp 	PrintItr
+	call	lnspace		; Print ': '
+	jmp 	PrintItr	; Restart the loop
 
 PrintFChar:
-	mov	rax, 1
-	mov	rdi, 1
-	mov	rsi, FBUFF
-	add	rsi, r8 
-	mov	rdx, 1
-	syscall
-	inc	r8 
-	jmp	PrintItr
+; Print the nth char from the file
+	mov	rax, 1		; Read syscall #
+	mov	rdi, 1		; Stdout #
+	mov	rsi, FBUFF	; Memory address of the data from the file
+	add	rsi, r8 	; Changes the memory address to that of the nth char
+	mov	rdx, 1		; Print only 1 byte
+	syscall			; Let the system take over
+	inc	r8 		; Increment our printed chars counter
+	jmp	PrintItr	; Restart the loop
 
 
 PrintEnd:
-	call	newline
-	call	EXIT
+	call	newline		; print a newline for looks
+	call	EXIT		; End the program
 
 global POP
 POP:
