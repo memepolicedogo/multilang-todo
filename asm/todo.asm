@@ -6,12 +6,14 @@ section .data
 	RERRMSGL	equ $ - RERRMSG
 	ARGC:		dq 1			; Number of args
 	NL:		db 10			; Newline char
+	TMPFILE:	db 'todotmp.txt',0
 	FILENAME:	db 'todo.txt',0		; Name of todo file
 	NULL:		equ 0			; Null char
 	FBUFF_LEN:	equ 1024			; Bytes in file buffer
 	READ_LEN	dq 0			; How much of the file is read
 section .bss
 	POPI		resq 1
+	TMPDESC		resq 1
 	FDESC 		resq 1			; File discriptor
 	FBUFF		resb 1024		; File buffer
 	WBUFF		resb 1			; Write buffer
@@ -184,11 +186,25 @@ PrintLineCounter:
 ShiftDigit:
 	mov	rax, [LWBUFF]	; Store our counter in rax so we can do more to it
 	sub	rax, 8		; Subtract 8, turns out '9' to a '1'
+	cmp	ah, 0
+	jne	AddTen
 	shl	rax, 8		; Move everything over to the left 1 byte
 	; i.e. if we have '','','1','1' this gives us '','1','1',''
 	add	rax, 48		; Adds the ascii for '0', effectivly puts it in the lowest bit
 	mov	[LWBUFF], rax 	; Put our updated value into our buffer
 	jmp PrintLineCounter	; Print our updated value
+AddTen:
+	cmp	ah, 57
+	je	AddH
+	inc	ah
+	mov	[LWBUFF], rax
+	jmp PrintLineCounter
+AddH:
+	sub	ah, 8
+	shl	rax, 8
+	mov	al, ah
+	mov	ah, 0
+	jmp	PrintLineCounter
 
 EndLineCounter:
 	call	lnspace		; Print ': '
@@ -207,8 +223,25 @@ PrintFChar:
 
 
 PrintEnd:
+	cmp	[READ_LEN], dword 1024; If the entire buffer was read from the file
+	je	ContinueRead	; Moves on to the next part of the file
 	call	newline		; print a newline for looks
 	call	EXIT		; End the program
+ContinueRead:
+
+	mov	rax, 0
+	mov	rdi, [FDESC]
+	mov	rsi, FBUFF
+	mov	rdx, FBUFF_LEN
+	syscall
+
+	cmp	rax, 0
+	jle	ReadErr		; Error message
+
+	xor	r8, r8 		; Zeros char counter
+	mov	[READ_LEN], rax ; Stores # of bytes read
+	jmp	PrintItr	; Returns to the loop to print this new data
+
 
 global POP
 POP:
@@ -235,29 +268,15 @@ POP:
 
 	mov	[READ_LEN], rax	; Store how many bytes were read
 	; Close file
-	mov	rax, 3
-	mov	rdi, [FDESC]
-	syscall
 
-	; Delete file
-	mov	rax, 87
-	mov	rdi, FILENAME
-	syscall
-
-	; Open and create anew
+	; Open and create temp file
 	mov	rax, 2
-	mov	rdi, FILENAME
+	mov	rdi, TMPFILE
 	mov	rsi, 101	; Create if not exist and open to read
 	mov	rdx, 666q	; read/write perms for all users
 	syscall
 
-	mov	rax, 2
-	mov	rdi, FILENAME
-	mov	rsi, 2
-	xor	rdx, rdx 
-	syscall
-
-	mov	[FDESC], rax	;
+	mov	[TMPDESC], rax	;
 
 	; Prepare to write
 	; Zero counters
@@ -276,9 +295,21 @@ Itr:
 	; I have to use rsi as an inbetween.
 	; For writing rsi must be a pointer to the string
 	; to be written so the actual char cannot be stored therein
-	cmp	r8b, byte [READ_LEN]	; If we've reached the last char
-	jge	ItrEnd		; End the loop
-	inc	r8 		; Otherwise go to the next
+	inc	r8
+	cmp	r8, [READ_LEN]	; If we've reached the last char
+	jle	ContItr	
+	
+	; Read in again
+	mov	rax, 0
+	mov	rdi, [FDESC]
+	mov	rsi, FBUFF
+	mov	rdx, 1024
+	syscall
+	mov	[READ_LEN], rax
+	cmp	rax, 0
+	je	ItrEnd
+	mov	r8, 0
+ContItr:
 	cmp	rsi, 10		; If this char is a newline
 	je	IncNL
 	cmp	r10, [POPI]	; If this line is to be removed
@@ -286,12 +317,11 @@ Itr:
 	je	Skip		; If it is, skip it
 IncNL:
 	inc	r10 		; Increment the line counter
-	mov	r14, [POPI]
-	cmp	r10, [POPI]	; If the line is to be removed
-	je	Itr		; Restart the loop
+	cmp	r10, [POPI]
+	je	Itr
 Write:				; Otherwise it continues to this code
 	mov	rax, 1		; write syscall #
-	mov	rdi, [FDESC]	; File Discriptor
+	mov	rdi, [TMPDESC]	; File Discriptor
 	mov	rsi, WBUFF	; Pointer to char
 	mov	rdx, 1		; # of bytes
 	syscall
@@ -299,7 +329,37 @@ Write:				; Otherwise it continues to this code
 Skip:
 	jmp Itr			; Restart loop
 ItrEnd:
+
+	mov	rax, 3
+	mov	rdi, [FDESC]
+	syscall
+
+	mov	rax, 87
+	mov	rdi, FILENAME
+	syscall
+
+	mov	rax, 86
+	mov	rdi, TMPFILE
+	mov	rsi, FILENAME
+	syscall
+
+	mov	rax, 87
+	mov	rdi, TMPFILE
+	syscall
+
 	call	EXIT		; Just leave
+
+ReReadFile:
+	mov	rax, 0
+	mov	rdi, [FDESC]
+	mov	rsi, FBUFF
+	mov	rdx, FBUFF_LEN
+	syscall
+	mov	[READ_LEN], rax 
+	cmp	rax, 0
+	je	ItrEnd
+	xor	r8, r8 
+	jmp	Itr
 
 ReadErr:
 	; If the file isn't read right it prints an error
