@@ -1,5 +1,5 @@
 Requirements:
-64 bit linux computer
+x86-64 linux system
 nasm assembler
 ld linker
 
@@ -14,8 +14,6 @@ $ todo -d {index}
 
 
 Limitations:
-Listing is capped at 1024 characters, including newlines, 
-increasing this limit is the next priority.
 
-Line numbers are limited to 8 digits. This could be changed
-but it really doesn't matter
+Line numbers are limited to 2 digits. This could be changed
+but it really doesn't matter, if you have more than 99 things on your list you have bigger problems
