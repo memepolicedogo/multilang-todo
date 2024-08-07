@@ -9,7 +9,7 @@ section .data
 	TMPFILE:	db 'todotmp.txt',0
 	FILENAME:	db 'todo.txt',0		; Name of todo file
 	NULL:		equ 0			; Null char
-	FBUFF_LEN:	equ 1024			; Bytes in file buffer
+	FBUFF_LEN:	equ 1024		; Bytes in file buffer
 	READ_LEN	dq 0			; How much of the file is read
 section .bss
 	POPI		resq 1
@@ -282,6 +282,53 @@ POP:
 	; Zero counters
 	xor 	r10, r10	; line counter
 	xor	r8, r8		; char counter
+	
+	cmp	r10, [POPI]	; Check if the line to be removed is zero
+	jne	Itr		; If not treat it normally
+
+ZeroItr:
+	; Iterates through chars until the end of the first line 
+	; giving us the number of bytes we want to skip
+	xor	rsi, rsi	; clear char container 
+	mov	sil, byte [FBUFF + r8 ]	; Store the next char in the first 8 bits of rsi
+	mov	[WBUFF], sil		; Store the char into the write buffer
+	inc	r8
+
+	cmp	rsi, 10		; Checks if this is a newline char
+	jne	ZeroItr		; If not go to the next char
+	; Time to write
+	mov	rax, 8		; The lseek syscall, puts us at a specific part of a file
+	mov	rdi, [FDESC]	; Where to seek
+	mov	rsi, r8		; How much offset
+	mov	rdx, 0		; From where do you offset (0 = start of file)
+	syscall
+ZPlusWrite:
+	; It's been months since I worked on this
+	; I don't remember what names I've already used
+	; this seems safe tho
+	
+	; Read file
+	mov	rax, 0
+	mov	rdi, [FDESC]
+	mov	rsi, FBUFF
+	mov	rdx, 1024
+	syscall
+	mov	[READ_LEN], rax
+	
+	; Write what was read in to tmp file
+	mov	rax, 1
+	mov	rdi, [TMPDESC]
+	mov	rsi, FBUFF
+	mov	rdx, [READ_LEN]
+	syscall
+
+	cmp	rax, 0
+	jl	ReadErr		; Not a read error but whatever man
+
+	cmp	rax, 1024	; Check if write buffer was full
+	je	ZPlusWrite	; If so, there's probably more to write
+	jmp ItrEnd		; Otherwise we can end this
+
 
 Itr:
 	; Goes char by char, using a r10 to store line #
