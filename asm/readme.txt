@@ -11,7 +11,8 @@ $ todo "Item to be added"
 Remove an item from todo list:
 $ todo -d {index}
 *Index starts at 0
-
+Clear todo list:
+$ todo -c
 
 Limitations:
 

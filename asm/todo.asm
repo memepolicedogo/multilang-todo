@@ -4,6 +4,10 @@ section .data
 	ARGERRL		equ $ - ARGERR
 	RERRMSG		db 'File messed up', 10
 	RERRMSGL	equ $ - RERRMSG
+	CLEARMSG	db 'Are you sure you want to clear your list?',10,'This cannot be undone (y/n)',10
+	CLEARMSGL	equ $ - CLEARMSG
+	EMPTYMSG	db 'File is empty',10
+	EMPTYMSGL	equ $ - EMPTYMSG
 	ARGC:		dq 1			; Number of args
 	NL:		db 10			; Newline char
 	TMPFILE:	db 'todotmp.txt',0
@@ -52,6 +56,8 @@ NextArg:
 	mov	r9b, [r8]	; Gets the next char of the arg, should be all we need to know what to do 
 	cmp	r9b, byte 100	; If it is d, the delete flag
 	je	del		; Jump to the delete function
+	cmp	r9b, byte 99	; If it is c, the clear flag
+	je	clear		; Jump to the clear section
 				; Otherwise it is invalid
 	; Print a error message
 	mov	rax, 1
@@ -61,7 +67,8 @@ NextArg:
 	syscall
 
 	call	EXIT		; End the program
-
+clear:
+	call CLEAR
 print:
 	call POUT		; Call the print function
 del:
@@ -118,7 +125,7 @@ POUT:
 	syscall
 
 	cmp	rax, 0		; Checks for error
-	jle	ReadErr
+	jl	ReadErr
 
 	mov	[FDESC], rax	; store file pointer
 
@@ -130,7 +137,7 @@ POUT:
 	syscall
 
 	cmp	rax, 0		; Checks for error
-	jle	ReadErr
+	jle	EmptyFile
 
 	mov	[READ_LEN], rax ; Store the number of pingus read
 	; Print "0: "
@@ -327,7 +334,7 @@ ZPlusWrite:
 
 	cmp	rax, 1024	; Check if write buffer was full
 	je	ZPlusWrite	; If so, there's probably more to write
-	jmp ItrEnd		; Otherwise we can end this
+	jmp	ItrEnd		; Otherwise we can end this
 
 
 Itr:
@@ -419,6 +426,21 @@ ReadErr:
 
 	call	EXIT		; then it exits
 
+EmptyFile:
+	; If the file is empty wow
+	; Close the file
+	mov	rax, 3
+	mov	rdi, [FDESC]
+	syscall
+	; Tell the user
+	mov	rax, 1
+	mov	rdi, 1
+	mov	rsi, EMPTYMSG
+	mov	rdx, EMPTYMSGL
+	syscall
+
+	call	EXIT
+
 global PUT
 PUT:
 	; Open the file
@@ -458,3 +480,51 @@ PEnd:
 	mov	rdx, 1
 	syscall
 	call	EXIT		; Exit the jawn
+
+
+global CLEAR
+CLEAR:
+	; This deletes the whole shit
+	; Let's make sure this is what the user wants
+	mov	rax, 1
+	mov	rdi, 1
+	mov	rsi, CLEARMSG
+	mov	rdx, CLEARMSGL
+	syscall
+	; Now we read in their junt
+	mov	rax, 0
+	mov	rdi, 1
+	mov	rsi, WBUFF
+	mov	rdx, 1024	; Otherwise it'll overflow into the terminal 
+	syscall
+
+	cmp	rax, 0
+	jl	ReadErr
+
+	xor	rax, rax
+	mov	al, byte [WBUFF]
+	cmp	rax, 121
+	je	Clear
+	cmp	rax, 89
+	je	Clear
+	call EXIT
+
+Clear:
+	; Unlink(Delete) file
+	mov	rax, 87
+	mov	rdi, FILENAME
+	syscall
+	; Create new empty file
+	mov	rax, 2
+	mov	rdi, FILENAME
+	mov	rsi, 101	; Create if not exist and open to read
+	mov	rdx, 666q	; read/write perms for all users
+	syscall
+
+	; That just opened it so now we close it like responsible programers
+	mov	rdi, rax	; rax is fd from sys_open
+	mov	rax, 3		; sys_close
+	syscall
+
+	call EXIT
+
